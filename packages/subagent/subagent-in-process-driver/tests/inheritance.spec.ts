@@ -210,6 +210,31 @@ describe('in-process policy inheritance', () => {
     }
   })
 
+  it('allows a delegated child to repeat its inherited workspace-write mode without approval', async () => {
+    const script: Script = []
+    const { parent } = await setupWalled(script)
+    setSandboxMode(parent.session, 'workspace-write')
+    const target = join(workspace, 'inherited-write.txt')
+    script.push(
+      toolCallResponse('write', 'write', {
+        file_path: target,
+        content: 'inherited',
+        sandbox_permissions: 'workspace-write',
+      }),
+      textResponse('child done'),
+    )
+
+    const run = await startInProcessRun(spawnRequest(parent), {})
+    try {
+      await run.result
+      const child = run.localAgent as Agent
+      await expect(readFile(target, 'utf8')).resolves.toBe('inherited')
+      expect(toolResultTexts(child).join('\\n')).not.toContain('not strictly wider')
+    } finally {
+      await run.dispose()
+    }
+  })
+
   it('rejects a child escalation deterministically even when an answerer would allow it', async () => {
     const script: Script = []
     const { ctx, parent } = await setupWalled(script)
